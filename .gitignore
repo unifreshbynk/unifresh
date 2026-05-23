@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+data/unifresh.json
+data/unifresh.json.migrated.*
+data/unifresh.db
+data/unifresh.db-*
+data/backups/
+data/*.tmp
+data/.json-migrated
