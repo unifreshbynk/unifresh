@@ -183,7 +183,7 @@ app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
     apiVersion: 3,
-    storage: "sqlite",
+    storage: process.env.VERCEL ? "json" : "sqlite",
     features: { loginComplete: true, registerComplete: true },
     serviceArea: SERVICE_AREA,
     environment: process.env.NODE_ENV || "development",
