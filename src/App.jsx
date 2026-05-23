@@ -52,7 +52,6 @@ import {
   fetchAdminDemandes,
   patchDemandeSeen,
   markAllDemandesSeenOnServer,
-  downloadAdminCsv,
   requestAdminAccess,
   fetchAdminRequestStatus,
 } from "./api.js";
@@ -1136,7 +1135,7 @@ function AdminPanel({ onClose, demandesVersion, onDemandesChange, appearance, on
   const [isAllowed, setIsAllowed] = useState(() => isAdminTokenValid());
   const [authError, setAuthError] = useState("");
   const [activeProfileTab, setActiveProfileTab] = useState("etudiant");
-  const [inscriptionsOpen, setInscriptionsOpen] = useState(false);
+  const [adminFeedTab, setAdminFeedTab] = useState(/** @type {"all"|"inscription"|"service"} */ ("all"));
   const [demandes, setDemandes] = useState(() => loadDemandes().slice().reverse());
   const [adminLoadError, setAdminLoadError] = useState("");
 
@@ -1182,7 +1181,9 @@ function AdminPanel({ onClose, demandesVersion, onDemandesChange, appearance, on
       .map(([dayKey, dayItems]) => ({ dayKey, items: dayItems }));
   }, []);
   const allInscriptionsByDay = useMemo(() => groupByDay(allInscriptions), [allInscriptions, groupByDay]);
+  const allDemandesByDay = useMemo(() => groupByDay(demandes), [demandes, groupByDay]);
   const currentServiceByDay = useMemo(() => groupByDay(currentServiceDemandes), [currentServiceDemandes, groupByDay]);
+  const unseenCount = useMemo(() => demandes.filter((d) => !isDemandeSeen(d)).length, [demandes]);
   const serviceCountByProfile = useMemo(
     () => ({
       etudiant: demandes.filter((d) => d.profilType === "etudiant" && d.kind === "demande_service").length,
@@ -1232,27 +1233,10 @@ function AdminPanel({ onClose, demandesVersion, onDemandesChange, appearance, on
     }
   }
 
-  async function exportCsv() {
-    try {
-      await downloadAdminCsv(getAdminAuthHeaders());
-    } catch {
-      setAdminLoadError("Export CSV impossible.");
-    }
-  }
-
   function profileTabLabel(profileKey, label) {
     const total = serviceCountByProfile[profileKey];
     return `${label} (${total})`;
   }
-
-  useEffect(() => {
-    if (!inscriptionsOpen) return;
-    function onKey(e) {
-      if (e.key === "Escape") setInscriptionsOpen(false);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [inscriptionsOpen]);
 
   useEffect(() => {
     if (!isAllowed) return;
@@ -1264,6 +1248,27 @@ function AdminPanel({ onClose, demandesVersion, onDemandesChange, appearance, on
     }, 10000);
     return () => clearInterval(interval);
   }, [isAllowed]);
+
+  useEffect(() => {
+    if (!isAllowed) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const list = await fetchAdminDemandes(getAdminAuthHeaders());
+        if (cancelled) return;
+        replaceDemandesCache(list);
+        setDemandes(list);
+        setAdminLoadError("");
+      } catch {
+        /* garde la liste locale */
+      }
+    };
+    const timer = setInterval(refresh, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [isAllowed, demandesVersion]);
 
   function renderDemandesByDay(groups, keyPrefix) {
     if (groups.length === 0) return <p className="hint">Aucune entrée.</p>;
@@ -1341,84 +1346,100 @@ function AdminPanel({ onClose, demandesVersion, onDemandesChange, appearance, on
           />
         </div>
         <section className="card form-card admin-service-card">
-        <div className="admin-session-bar">
-          <button type="button" className="btn ghost admin-logout-btn" onClick={logoutAdmin}>
-            Quitter
-          </button>
-        </div>
-        <div className="admin-panel-head">
-          <div className="admin-panel-head-main">
-            <h2>Demandes de service</h2>
-            <p className="hint">
-              {totalServiceDemandes === 0
-                ? "Aucune demande de service pour le moment."
-                : `${totalServiceDemandes} demande${totalServiceDemandes > 1 ? "s" : ""} de service`}
-            </p>
+        <header className="admin-header">
+          <div className="admin-header-row">
+            <button type="button" className="btn ghost btn-sm admin-logout-btn" onClick={logoutAdmin}>
+              Quitter la session
+            </button>
+            {unseenCount > 0 ? (
+              <span className="admin-unseen-pill">{unseenCount} nouvelle{unseenCount > 1 ? "s" : ""}</span>
+            ) : null}
           </div>
-          <button
-            type="button"
-            className="admin-inscriptions-chip"
-            onClick={() => setInscriptionsOpen(true)}
-            aria-haspopup="dialog"
-            aria-expanded={inscriptionsOpen}
-            title="Voir toutes les inscriptions"
-          >
-            Inscr. {allInscriptions.length}
-          </button>
-        </div>
+          <h2 id="admin-panel-title">Inscriptions et demandes</h2>
+          <p className="admin-summary" aria-live="polite">
+            {demandes.length === 0
+              ? "Chaque inscription et chaque formulaire envoyé apparaîtra ici automatiquement."
+              : `${allInscriptions.length} inscription${allInscriptions.length !== 1 ? "s" : ""} · ${totalServiceDemandes} demande${totalServiceDemandes !== 1 ? "s" : ""} de service`}
+            {unseenCount > 0 ? ` · ${unseenCount} à traiter` : ""}
+          </p>
+        </header>
+
         {adminLoadError ? (
           <p className="alert" role="alert">
             {adminLoadError}
           </p>
         ) : null}
-        {totalServiceDemandes > 0 ? (
-          <button type="button" className="btn ghost admin-mark-all-seen" onClick={markAllSeen}>
-            Tout marquer comme traité
+
+        <div className="admin-toolbar">
+          {unseenCount > 0 ? (
+            <button type="button" className="btn ghost btn-sm" onClick={markAllSeen}>
+              Tout marquer comme traité
+            </button>
+          ) : null}
+          <button type="button" className="btn ghost btn-sm admin-toolbar-close" onClick={onClose}>
+            Fermer l&apos;admin
           </button>
-        ) : null}
-        <button type="button" className="btn secondary" onClick={exportCsv}>
-          Exporter CSV
-        </button>
-        <button type="button" className="btn ghost" onClick={onClose}>
-          Fermer l'espace admin
-        </button>
-        {inscriptionsOpen ? (
-          <div
-            className="admin-inscriptions-backdrop"
-            role="presentation"
-            onClick={() => setInscriptionsOpen(false)}
+        </div>
+
+        <div className="slot-mode-tabs admin-feed-tabs" role="tablist" aria-label="Type d'activité">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminFeedTab === "all"}
+            className={`slot-mode-tab ${adminFeedTab === "all" ? "active" : ""}`}
+            onClick={() => setAdminFeedTab("all")}
           >
-            <div
-              className="admin-inscriptions-panel"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="admin-inscriptions-title"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="admin-inscriptions-panel-head">
-                <h3 id="admin-inscriptions-title">Inscriptions ({allInscriptions.length})</h3>
-                <button
-                  type="button"
-                  className="admin-inscriptions-close"
-                  onClick={() => setInscriptionsOpen(false)}
-                  aria-label="Fermer les inscriptions"
-                >
-                  ✕
-                </button>
-              </div>
-              {renderDemandesByDay(allInscriptionsByDay, "insc-all")}
-            </div>
+            Tout ({demandes.length})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminFeedTab === "inscription"}
+            className={`slot-mode-tab ${adminFeedTab === "inscription" ? "active" : ""}`}
+            onClick={() => setAdminFeedTab("inscription")}
+          >
+            Inscriptions ({allInscriptions.length})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminFeedTab === "service"}
+            className={`slot-mode-tab ${adminFeedTab === "service" ? "active" : ""}`}
+            onClick={() => setAdminFeedTab("service")}
+          >
+            Formulaires ({totalServiceDemandes})
+          </button>
+        </div>
+
+        {demandes.length === 0 ? (
+          <div className="admin-empty-state" role="status">
+            <p className="admin-empty-title">Rien pour le moment</p>
+            <p className="admin-empty-hint">
+              Dès qu&apos;un visiteur s&apos;inscrit ou envoie une demande de nettoyage, le détail s&apos;affiche
+              ici (rafraîchissement automatique toutes les 30 secondes).
+            </p>
           </div>
         ) : null}
-        {totalServiceDemandes === 0 && allInscriptions.length > 0 ? (
-          <p className="hint">Les inscriptions sont dans le bouton en haut à droite.</p>
+
+        {demandes.length > 0 && adminFeedTab === "all" ? (
+          <section className="admin-group admin-group-primary">
+            {renderDemandesByDay(allDemandesByDay, "all")}
+          </section>
         ) : null}
-        {totalServiceDemandes === 0 && allInscriptions.length === 0 ? (
-          <p>Aucune demande pour le moment.</p>
+
+        {demandes.length > 0 && adminFeedTab === "inscription" ? (
+          <section className="admin-group admin-group-primary">
+            {allInscriptions.length === 0 ? (
+              <p className="hint">Aucune inscription pour le moment.</p>
+            ) : (
+              renderDemandesByDay(allInscriptionsByDay, "insc")
+            )}
+          </section>
         ) : null}
-        {totalServiceDemandes > 0 ? (
+
+        {demandes.length > 0 && adminFeedTab === "service" ? (
           <>
-            <div className="slot-mode-tabs" role="tablist" aria-label="Profil de demandes de service">
+            <div className="slot-mode-tabs admin-profile-tabs" role="tablist" aria-label="Profil">
               <button
                 type="button"
                 role="tab"
@@ -1448,7 +1469,7 @@ function AdminPanel({ onClose, demandesVersion, onDemandesChange, appearance, on
               </button>
             </div>
             {currentServiceDemandes.length === 0 ? (
-              <p className="hint">Aucune demande de service pour ce profil.</p>
+              <p className="hint">Aucun formulaire de service pour ce profil.</p>
             ) : (
               <section className="admin-group admin-group-primary">
                 {renderDemandesByDay(currentServiceByDay, "svc")}

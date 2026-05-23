@@ -1,4 +1,15 @@
 /**
+ * URL publique du site (production / Vercel).
+ */
+export function resolveAppBaseUrl() {
+  const explicit = String(process.env.APP_BASE_URL || "").trim().replace(/\/$/, "");
+  if (explicit) return explicit;
+  const vercel = String(process.env.VERCEL_URL || "").trim();
+  if (vercel) return `https://${vercel.replace(/^https?:\/\//, "")}`;
+  return "";
+}
+
+/**
  * Validation de la configuration au démarrage (production).
  */
 export function validateEnv() {
@@ -22,10 +33,12 @@ export function validateEnv() {
     warnings.push("ADMIN_REVIEW_EMAIL non défini — les notifications admin iront vers SMTP_USER.");
   }
 
-  const appBase = String(process.env.APP_BASE_URL || "").trim().replace(/\/$/, "");
+  const appBase = resolveAppBaseUrl();
   if (isProd) {
     if (!appBase) {
-      errors.push("APP_BASE_URL est obligatoire en production (ex. https://www.unifresh.ch).");
+      errors.push(
+        "APP_BASE_URL est obligatoire en production (ex. https://unifresh.ch), ou déployez sur Vercel avec VERCEL_URL."
+      );
     } else if (!appBase.startsWith("https://")) {
       errors.push("APP_BASE_URL doit commencer par https:// en production.");
     } else if (/localhost|127\.0\.0\.1/i.test(appBase)) {
@@ -35,7 +48,7 @@ export function validateEnv() {
     warnings.push("APP_BASE_URL devrait être une URL complète (https://…).");
   }
 
-  if (isProd && !String(process.env.TRUST_PROXY || "").trim()) {
+  if (isProd && !process.env.VERCEL && !String(process.env.TRUST_PROXY || "").trim()) {
     warnings.push(
       "TRUST_PROXY=1 recommandé derrière Nginx/Caddy pour le rate limiting et les logs IP."
     );
@@ -48,8 +61,11 @@ export function assertEnvValid() {
   const { errors, warnings } = validateEnv();
   for (const w of warnings) console.warn(`[CONFIG] ${w}`);
   if (errors.length > 0) {
-    console.error("[CONFIG] Configuration invalide :");
-    for (const e of errors) console.error(`  - ${e}`);
+    const detail = errors.join(" ");
+    console.error("[CONFIG] Configuration invalide :", detail);
+    if (process.env.VERCEL) {
+      throw new Error(detail);
+    }
     process.exit(1);
   }
 }

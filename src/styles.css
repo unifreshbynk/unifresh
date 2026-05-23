@@ -1370,19 +1370,41 @@ h3.week-title {
   line-height: 1.45;
 }
 
-.admin-service-card {
-  position: relative;
+.btn-sm {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
 }
 
-.admin-session-bar {
+.admin-service-card {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.admin-header {
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-header-row {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1rem;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.65rem;
-  border-bottom: 1px dashed var(--border);
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.admin-header h2 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.35rem, 4vw, 1.65rem);
+}
+
+.admin-summary {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .admin-session-expiry {
@@ -1390,43 +1412,78 @@ h3.week-title {
 }
 
 .admin-logout-btn {
-  font-size: 0.85rem;
+  flex-shrink: 0;
 }
 
-.admin-panel-head {
+.admin-toolbar {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
 }
 
-.admin-panel-head-main {
-  flex: 1;
-  min-width: 0;
+.admin-toolbar-close {
+  margin-left: auto;
 }
 
-.admin-panel-head-main h2 {
-  margin: 0 0 0.25rem;
+.admin-empty-state {
+  text-align: center;
+  padding: 2rem 1.25rem;
+  border-radius: 12px;
+  border: 1px dashed rgba(62, 207, 142, 0.25);
+  background: rgba(62, 207, 142, 0.04);
+}
+
+.admin-empty-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.admin-empty-hint {
+  margin: 0 auto;
+  max-width: 28rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--muted);
 }
 
 .admin-inscriptions-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   flex-shrink: 0;
-  margin-top: 0.15rem;
-  padding: 0.22rem 0.45rem;
+  padding: 0.35rem 0.65rem;
   border-radius: 999px;
-  border: 1px solid rgba(62, 207, 142, 0.4);
-  background: rgba(62, 207, 142, 0.1);
-  color: #a5eccc;
-  font-size: 0.68rem;
-  font-weight: 700;
+  border: 1px solid rgba(62, 207, 142, 0.45);
+  background: rgba(62, 207, 142, 0.12);
+  color: #b8f0d4;
+  font-size: 0.78rem;
+  font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
-  position: relative;
+}
+
+.admin-inscriptions-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: rgba(62, 207, 142, 0.25);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .admin-inscriptions-chip:hover {
-  background: rgba(62, 207, 142, 0.18);
+  background: rgba(62, 207, 142, 0.2);
+  border-color: rgba(62, 207, 142, 0.6);
 }
 
 .admin-inscriptions-chip-dot {
@@ -1542,8 +1599,20 @@ h3.week-title {
 }
 
 .admin-mark-all-seen {
-  margin-top: 0.35rem;
-  margin-bottom: 0.35rem;
+  margin: 0;
+}
+
+.admin-feed-tabs {
+  margin-top: 0;
+}
+
+.admin-profile-tabs {
+  margin-top: -0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.admin-header-row .admin-unseen-pill {
+  margin-left: auto;
 }
 
 .admin-seen-status {

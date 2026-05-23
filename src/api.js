@@ -17,9 +17,9 @@ async function readResponsePayload(response) {
 async function ensureOk(response) {
   const { data, text } = await readResponsePayload(response);
   if (response.ok) return data;
-  if (response.status === 404 && /Cannot POST/i.test(text)) {
+  if (response.status === 404 && (/Cannot POST/i.test(text) || /NOT_FOUND/i.test(text))) {
     throw new Error(
-      "Le serveur API est obsolète. Fermez l'ancien terminal, puis dans le dossier uniclean lancez : npm run server"
+      "Le service d'inscription est indisponible (API non configurée). Réessayez plus tard ou contactez UniFresh."
     );
   }
   if (response.status === 502 || response.status === 503) {

@@ -5,7 +5,11 @@ import crypto from "crypto";
 import Database from "better-sqlite3";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const DATA_DIR = path.join(__dirname, "..", "data");
+export const DATA_DIR =
+  String(process.env.DATA_DIR || "").trim() ||
+  (process.env.VERCEL
+    ? path.join("/tmp", "unifresh-data")
+    : path.join(__dirname, "..", "data"));
 export const DB_FILE = path.join(DATA_DIR, "unifresh.db");
 const LEGACY_JSON = path.join(DATA_DIR, "unifresh.json");
 

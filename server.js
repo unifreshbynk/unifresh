@@ -8,12 +8,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import * as db from "./server/db.js";
 const { DB_FILE, DATA_DIR } = db;
-import { assertEnvValid } from "./server/env.js";
+import { assertEnvValid, resolveAppBaseUrl } from "./server/env.js";
 import { scheduleBackups } from "./server/backup.js";
 import { rateLimitMiddleware } from "./server/rateLimit.js";
-
-assertEnvValid();
-db.getDatabase();
 import {
   escapeHtml,
   formatDemandeText,
@@ -28,12 +25,33 @@ const SERVICE_AREA =
   String(process.env.SERVICE_AREA_LABEL || "").trim() ||
   "Suisse romande (Genève, Vaud, Valais, Fribourg, Neuchâtel, Jura)";
 
-const app = express();
+export const app = express();
 const isProd = process.env.NODE_ENV === "production";
 
-if (String(process.env.TRUST_PROXY || "").trim() === "1" || isProd) {
+if (String(process.env.TRUST_PROXY || "").trim() === "1" || isProd || process.env.VERCEL) {
   app.set("trust proxy", 1);
 }
+
+let serverReady = false;
+export function ensureServerReady() {
+  if (serverReady) return;
+  assertEnvValid();
+  db.getDatabase();
+  db.purgeExpiredAdminTokens();
+  serverReady = true;
+}
+
+app.use((req, res, next) => {
+  try {
+    ensureServerReady();
+    next();
+  } catch (err) {
+    console.error("[BOOT]", err);
+    res.status(503).json({
+      error: "Service en cours de configuration. Réessayez dans quelques instants.",
+    });
+  }
+});
 
 app.use(
   helmet({
@@ -152,7 +170,7 @@ const adminRequestLimit = rateLimitMiddleware("admin-request", 5, 60 * 60 * 1000
 const adminAccessCodeLimit = rateLimitMiddleware("admin-access-code", 12, 15 * 60 * 1000);
 
 function appBaseUrl(req) {
-  const configured = String(process.env.APP_BASE_URL || "").trim().replace(/\/$/, "");
+  const configured = resolveAppBaseUrl();
   if (configured) return configured;
   return `${req.protocol}://${req.get("host")}`;
 }
@@ -626,44 +644,56 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: "Erreur serveur interne." });
 });
 
-const backupDir = path.join(DATA_DIR, "backups");
-const backupTimer = scheduleBackups(
-  DB_FILE,
-  backupDir,
-  Number(process.env.BACKUP_INTERVAL_MS || 6 * 60 * 60 * 1000)
-);
-
-const maintenanceTimer = setInterval(
-  () => db.purgeExpiredAdminTokens(),
-  Number(process.env.MAINTENANCE_INTERVAL_MS || 15 * 60 * 1000)
-);
-
-const server = app.listen(PORT, () => {
-  db.purgeExpiredAdminTokens();
-  const base = String(process.env.APP_BASE_URL || "").trim() || `http://localhost:${PORT}`;
-  console.log(`UniFresh server ${base}`);
-  console.log(`Zone : ${SERVICE_AREA}`);
-  console.log(`Base de données : ${DB_FILE}`);
-  if (fs.existsSync(DIST_DIR)) console.log("Front statique : dist/");
-  const user = String(process.env.SMTP_USER || "").trim();
-  if (user) {
-    createTransporter()
-      .verify()
-      .then(() => console.log(`[SMTP] OK — ${user}`))
-      .catch((err) => console.error(`[SMTP] Échec — ${formatSmtpError(err)}`));
+function isStandaloneServer() {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return path.resolve(entry) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
   }
-});
-
-function shutdown(signal) {
-  console.log(`[SERVER] Arrêt (${signal})…`);
-  clearInterval(backupTimer);
-  clearInterval(maintenanceTimer);
-  server.close(() => {
-    db.closeDatabase();
-    process.exit(0);
-  });
-  setTimeout(() => process.exit(1), 10_000).unref();
 }
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+if (isStandaloneServer()) {
+  const backupDir = path.join(DATA_DIR, "backups");
+  const backupTimer = scheduleBackups(
+    DB_FILE,
+    backupDir,
+    Number(process.env.BACKUP_INTERVAL_MS || 6 * 60 * 60 * 1000)
+  );
+
+  const maintenanceTimer = setInterval(
+    () => db.purgeExpiredAdminTokens(),
+    Number(process.env.MAINTENANCE_INTERVAL_MS || 15 * 60 * 1000)
+  );
+
+  const server = app.listen(PORT, () => {
+    ensureServerReady();
+    const base = resolveAppBaseUrl() || `http://localhost:${PORT}`;
+    console.log(`UniFresh server ${base}`);
+    console.log(`Zone : ${SERVICE_AREA}`);
+    console.log(`Base de données : ${DB_FILE}`);
+    if (fs.existsSync(DIST_DIR)) console.log("Front statique : dist/");
+    const user = String(process.env.SMTP_USER || "").trim();
+    if (user) {
+      createTransporter()
+        .verify()
+        .then(() => console.log(`[SMTP] OK — ${user}`))
+        .catch((err) => console.error(`[SMTP] Échec — ${formatSmtpError(err)}`));
+    }
+  });
+
+  function shutdown(signal) {
+    console.log(`[SERVER] Arrêt (${signal})…`);
+    clearInterval(backupTimer);
+    clearInterval(maintenanceTimer);
+    server.close(() => {
+      db.closeDatabase();
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 10_000).unref();
+  }
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+}
