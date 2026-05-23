@@ -22,7 +22,12 @@ export function validateEnv() {
   const smtpHost = String(process.env.SMTP_HOST || "").trim();
 
   if (!smtpHost || !smtpUser || !smtpPass) {
-    errors.push("SMTP_HOST, SMTP_USER et SMTP_PASS sont obligatoires.");
+    const smtpMsg = "SMTP_HOST, SMTP_USER et SMTP_PASS sont obligatoires pour l'inscription.";
+    if (process.env.VERCEL) {
+      warnings.push(smtpMsg);
+    } else {
+      errors.push(smtpMsg);
+    }
   }
   if (smtpPass === "your-gmail-app-password" || smtpPass.length < 8) {
     warnings.push("SMTP_PASS semble être un placeholder — configurez un mot de passe d'application.");

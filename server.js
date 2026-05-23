@@ -106,7 +106,9 @@ function createTransporter() {
   const port = Number(process.env.SMTP_PORT || 587);
   const secure = String(process.env.SMTP_SECURE || "false") === "true";
   if (!host || !user || !pass) {
-    throw new Error("SMTP_HOST, SMTP_USER et SMTP_PASS sont obligatoires.");
+    throw new Error(
+      "Envoi d'e-mail non configuré sur le serveur. Contactez UniFresh ou réessayez plus tard."
+    );
   }
   return nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
 }
